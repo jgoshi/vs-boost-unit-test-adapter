@@ -46,14 +46,14 @@ namespace BoostTestAdapter.Boost.Runner
 
         #region IBoostTestRunner
 
-        public virtual void Execute(BoostTestRunnerCommandLineArgs args, BoostTestRunnerSettings settings, IProcessExecutionContext executionContext)
+        public virtual int Execute(BoostTestRunnerCommandLineArgs args, BoostTestRunnerSettings settings, IProcessExecutionContext executionContext)
         {
             Utility.Code.Require(settings, "settings");
             Utility.Code.Require(executionContext, "executionContext");
 
             using (Process process = executionContext.LaunchProcess(GetExecutionContextArgs(args, settings)))
             {
-                MonitorProcess(process, settings.Timeout);
+                return MonitorProcess(process, settings.Timeout);
             }
         }
         
@@ -125,7 +125,7 @@ namespace BoostTestAdapter.Boost.Runner
         /// <param name="process">The process to monitor.</param>
         /// <param name="timeout">The timeout threshold until the process and its children should be killed.</param>
         /// <exception cref="TimeoutException">Thrown in case specified timeout threshold is exceeded.</exception>
-        private static void MonitorProcess(Process process, int timeout)
+        private static int MonitorProcess(Process process, int timeout)
         {
             process.WaitForExit(timeout);
 
@@ -135,10 +135,25 @@ namespace BoostTestAdapter.Boost.Runner
 
                 throw new TimeoutException(timeout);
             }
+
+            try
+            {
+                return process.ExitCode;
+            }
+            catch (InvalidOperationException)
+            {
+                // This is a common scenario when attempting to request the exit code
+                // of a process which is executed through the debugger. In such cases
+                // assume a successful exit scenario. Should this not be the case, the
+                // adapter will 'naturally' fail in other instances e.g. when attempting
+                // to read test reports.
+
+                return 0;
+            }
         }
         
         /// <summary>
-        ///     Kills a process identified by its pid and all its children processes
+        /// Kills a process identified by its pid and all its children processes
         /// </summary>
         /// <param name="process">process object</param>
         /// <returns></returns>
